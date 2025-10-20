@@ -3,11 +3,25 @@ import DeckSelect from "./components/DeckSelect";
 import Flashcard from "./components/Flashcard";
 import Controls from "./components/Controls";
 import ProgressBar from "./components/ProgressBar";
-import { decks as allDecks, Deck } from "./data/decks";
+import { decks as allDecks } from "./data/decks";
+import type { Deck } from "./data/decks";
 import { useKeyBindings } from "./hooks/useKeyBindings";
 import { clsx } from "clsx";
+import { useEffect } from "react";
 
 type ProgressState = Record<string, "known" | "review">; // key = cardId
+
+const storageKey = (deckId: string) => `progress:${deckId}`;
+
+function loadProgress(deckId: string): ProgressState {
+  try {
+    const raw = localStorage.getItem(storageKey(deckId));
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
 
 function getDeckById(id: string): Deck {
   return allDecks.find(d => d.id === id) ?? allDecks[0];
@@ -17,7 +31,9 @@ export default function App() {
   const [activeDeckId, setActiveDeckId] = useState<string>(allDecks[0].id);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
-  const [progress, setProgress] = useState<ProgressState>({});
+
+  // Initialize the progress from storage
+  const [progress, setProgress] = useState<ProgressState>(() => loadProgress(allDecks[0].id));
 
   const deck = useMemo(() => getDeckById(activeDeckId), [activeDeckId]);
   const total = deck.cards.length;
@@ -63,7 +79,8 @@ export default function App() {
     setActiveDeckId(deckId);
     setCurrentIndex(0);
     setIsFlipped(false);
-    setProgress({}); // reset per deck for MVP
+    // setProgress({}); // reset per deck for MVP
+    setProgress(loadProgress(deckId));  // Load saved progress for this deck
   };
 
   // Keyboard shortcuts
@@ -74,6 +91,14 @@ export default function App() {
     known: markKnown,
     review: markReview,
   });
+
+  useEffect(() => {
+  try {
+    localStorage.setItem(storageKey(activeDeckId), JSON.stringify(progress));
+  } catch {
+    // ignore write failures (private mode, quota, etc.)
+  }
+}, [activeDeckId, progress]);
 
   return (
     <div className="container">
